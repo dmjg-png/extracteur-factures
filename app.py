@@ -6,46 +6,51 @@ import io
 
 def extraire_donnees(texte):
     numero = re.search(
-        r'(?:Facture|Invoice|FACTURE)\s*(?:n°|no|num|number|№|#)\s*:?\s*([A-Z0-9\-]+)',
+        r'(?:FACTURE\s*N°|Facture\s*(?:n°|no|num|number|№|#|N°))\s*[:\-]?\s*([A-Z0-9\-]+)',
         texte, re.IGNORECASE
     )
     date = re.search(
-        r'(?:Date[^:]*:\s*)(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})',
+        r'(?:DATE|Date[^:éà]*)\s*:\s*(\d{1,2}\s*[\/\-\.]\s*\d{1,2}\s*[\/\-\.]\s*\d{2,4})',
         texte, re.IGNORECASE
     )
     if not date:
-        date = re.search(r'(\d{2}\/\d{2}\/\d{2,4})', texte)
-    total_ttc = re.search(
-        r'(?:Total\s*TTC|Net\s*à\s*payer)[^\d]*([\d\s,\.]+\s*€?)',
+        date = re.search(r'(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})', texte)
+    echeance = re.search(
+        r'(?:ÉCHÉANCE|Échéance|Echeance|Due\s*date)\s*[:\-]?\s*([^\n]+)',
         texte, re.IGNORECASE
     )
-    if not total_ttc:
-        total_ttc = re.search(
-            r'(?:^TOTAL|^Total)[^\d]*([\d\s,\.]+\s*€)',
-            texte, re.IGNORECASE | re.MULTILINE
-        )
-    tva = re.search(
-        r'TVA\s*\([^)]*\)\s*:?\s*([\d][\d\s,\.]+\s*€?)',
-        texte, re.IGNORECASE
-    )
-    if not tva:
-        tva = re.search(
-            r'TVA\s*:\s*([\d][\d\s,\.]+\s*€?)',
-            texte, re.IGNORECASE
-        )
     total_ht = re.search(
-        r'(?:Total\s*HT|Sous[\s\-]total|Subtotal)[^\d]*([\d\s,\.]+\s*€?)',
+        r'(?:TOTAL\s*HT|Total\s*HT|Sous[\s\-]total|Subtotal|HT\s*total)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
         texte, re.IGNORECASE
     )
     if not total_ht:
         total_ht = re.search(
-            r'^Total:\s*([\d\s,\.]+\s*€?)',
+            r'^Total\s*:\s*([\d][\d\s,\.]+\s*€?)',
             texte, re.IGNORECASE | re.MULTILINE
         )
-    echeance = re.search(
-        r'(?:Échéance|Echeance|Due\s*date)[^\d]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})',
+    tva = re.search(
+        r'TVA\s*\([^)]*\)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
         texte, re.IGNORECASE
     )
+    if not tva:
+        tva = re.search(
+            r'(?:^TVA|^T\.V\.A)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
+            texte, re.IGNORECASE | re.MULTILINE
+        )
+    if not tva:
+        tva = re.search(
+            r'TVA\s*[:\-]\s*([\d][\d\s,\.]+\s*€?)',
+            texte, re.IGNORECASE
+        )
+    total_ttc = re.search(
+        r'(?:TOTAL\s*TTC|Total\s*TTC|Net\s*à\s*payer|Montant\s*TTC|Amount\s*due)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
+        texte, re.IGNORECASE
+    )
+    if not total_ttc:
+        total_ttc = re.search(
+            r'(?:^TOTAL|^Total)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€)',
+            texte, re.IGNORECASE | re.MULTILINE
+        )
 
     def get(match):
         if match:
@@ -74,19 +79,4 @@ if fichier:
         for page in pdf.pages:
             texte += page.extract_text()
 
-    resultat = extraire_donnees(texte)
-    df = pd.DataFrame([resultat])
-
-    st.success("Données extraites avec succès !")
-    st.dataframe(df)
-
-    buffer = io.BytesIO()
-    df.to_excel(buffer, index=False)
-    buffer.seek(0)
-
-    st.download_button(
-        "Télécharger Excel",
-        buffer,
-        "facture.xlsx",
-        "application/vnd.ms-excel"
-    )
+    resultat =
