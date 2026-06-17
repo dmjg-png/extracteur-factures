@@ -16,7 +16,7 @@ def extraire_donnees(texte):
     if not date:
         date = re.search(r'(\d{2}\/\d{2}\/\d{2,4})', texte)
     total_ttc = re.search(
-        r'(?:Total\s*TTC|Net\s*à\s*payer)[^\d]*([\d\s,\.]+\s*€)',
+        r'(?:Total\s*TTC|Net\s*à\s*payer)[^\d]*([\d\s,\.]+\s*€?)',
         texte, re.IGNORECASE
     )
     if not total_ttc:
@@ -24,11 +24,19 @@ def extraire_donnees(texte):
             r'(?:^TOTAL|^Total)[^\d]*([\d\s,\.]+\s*€)',
             texte, re.IGNORECASE | re.MULTILINE
         )
-    tva = re.search(r'TVA[^:]*:\s*([\d\s,\.]+\s*€)', texte, re.IGNORECASE)
-    total_ht = re.search(
-        r'(?:Total\s*HT|Sous[\s\-]total|Subtotal)[^\d]*([\d\s,\.]+\s*€)',
+    tva = re.search(
+        r'TVA[^:]*:\s*([\d\s,\.]+\s*€?)',
         texte, re.IGNORECASE
     )
+    total_ht = re.search(
+        r'(?:Total\s*HT|Sous[\s\-]total|Subtotal)[^\d]*([\d\s,\.]+\s*€?)',
+        texte, re.IGNORECASE
+    )
+    if not total_ht:
+        total_ht = re.search(
+            r'^Total:\s*([\d\s,\.]+\s*€?)',
+            texte, re.IGNORECASE | re.MULTILINE
+        )
     echeance = re.search(
         r'(?:Échéance|Echeance|Due\s*date)[^\d]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})',
         texte, re.IGNORECASE
