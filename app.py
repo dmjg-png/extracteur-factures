@@ -56,7 +56,7 @@ if fichier:
         texte = ""
         for page in pdf.pages:
             texte += page.extract_text()
-st.text_area("Texte extrait du PDF", texte, height=200)
+    st.text_area("Texte extrait du PDF", texte, height=200)
     with st.spinner("Extraction en cours..."):
         resultat = extraire_avec_ia(texte)
     
