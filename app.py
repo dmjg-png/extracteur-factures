@@ -5,15 +5,49 @@ import re
 import io
 
 def extraire_donnees(texte):
-    numero = re.search(r'Facture\s*[№#N°]*\s*(\d+)', texte)
-    date = re.search(r'Date de facturation[:\s]+(\d{2}/\d{2}/\d{4})', texte)
-    total_ttc = re.search(r'Total TTC[:\s]+([\d,\.]+)', texte)
-    tva = re.search(r'TVA\([^)]+\)[:\s]+([\d,\.]+)', texte)
+    numero = re.search(
+        r'(?:Facture|Invoice|FACTURE)\s*(?:n°|no|num|number|№|#)\s*:?\s*([A-Z0-9\-]+)',
+        texte, re.IGNORECASE
+    )
+    date = re.search(
+        r'(?:Date[^:]*:\s*)(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})',
+        texte, re.IGNORECASE
+    )
+    if not date:
+        date = re.search(r'(\d{2}\/\d{2}\/\d{2,4})', texte)
+    total_ttc = re.search(
+        r'(?:Total\s*TTC|Net\s*à\s*payer)[^\d]*([\d\s,\.]+\s*€)',
+        texte, re.IGNORECASE
+    )
+    if not total_ttc:
+        total_ttc = re.search(
+            r'(?:^TOTAL|^Total)[^\d]*([\d\s,\.]+\s*€)',
+            texte, re.IGNORECASE | re.MULTILINE
+        )
+    tva = re.search(r'TVA[^:]*:\s*([\d\s,\.]+\s*€)', texte, re.IGNORECASE)
+    total_ht = re.search(
+        r'(?:Total\s*HT|Sous[\s\-]total|Subtotal)[^\d]*([\d\s,\.]+\s*€)',
+        texte, re.IGNORECASE
+    )
+    echeance = re.search(
+        r'(?:Échéance|Echeance|Due\s*date)[^\d]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})',
+        texte, re.IGNORECASE
+    )
+
+    def get(match):
+        if match:
+            for g in match.groups():
+                if g:
+                    return g.strip()
+        return "Non trouvé"
+
     return {
-        "Numéro facture": numero.group(1) if numero else "Non trouvé",
-        "Date": date.group(1) if date else "Non trouvé",
-        "Total TTC": total_ttc.group(1) if total_ttc else "Non trouvé",
-        "TVA": tva.group(1) if tva else "Non trouvé",
+        "Numéro facture": get(numero),
+        "Date": get(date),
+        "Échéance": get(echeance),
+        "Total HT": get(total_ht),
+        "TVA": get(tva),
+        "Total TTC": get(total_ttc),
     }
 
 st.title("Extracteur de factures PDF")
@@ -26,20 +60,20 @@ if fichier:
         texte = ""
         for page in pdf.pages:
             texte += page.extract_text()
-    
+
     resultat = extraire_donnees(texte)
     df = pd.DataFrame([resultat])
-    
+
     st.success("Données extraites avec succès !")
     st.dataframe(df)
-    
+
     buffer = io.BytesIO()
     df.to_excel(buffer, index=False)
     buffer.seek(0)
-    
+
     st.download_button(
         "Télécharger Excel",
         buffer,
         "facture.xlsx",
-        "application/vnd.ms-excel" )
-  
+        "application/vnd.ms-excel"
+    )
