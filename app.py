@@ -1,71 +1,49 @@
 import streamlit as st
 import pdfplumber
 import pandas as pd
-import re
+import anthropic
 import io
+import json
+import re
 
-def extraire_donnees(texte):
-    numero = re.search(
-        r'(?:FACTURE\s*N°|Facture\s*(?:n°|no|num|number|№|#|N°))\s*[:\-]?\s*([A-Z0-9\-]+)',
-        texte, re.IGNORECASE
-    )
-    date = re.search(
-        r'(?:DATE|Date[^:éà]*)\s*:\s*(\d{1,2}\s*[\/\-\.]\s*\d{1,2}\s*[\/\-\.]\s*\d{2,4})',
-        texte, re.IGNORECASE
-    )
-    if not date:
-        date = re.search(r'(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})', texte)
-    echeance = re.search(
-        r'(?:ÉCHÉANCE|Échéance|Echeance|Due\s*date)\s*[:\-]?\s*([^\n]+)',
-        texte, re.IGNORECASE
-    )
-    total_ht = re.search(
-        r'(?:TOTAL\s*HT|Total\s*HT|Sous[\s\-]total|Subtotal|HT\s*total)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
-        texte, re.IGNORECASE
-    )
-    if not total_ht:
-        total_ht = re.search(
-            r'^Total\s*:\s*([\d][\d\s,\.]+\s*€?)',
-            texte, re.IGNORECASE | re.MULTILINE
-        )
-    tva = re.search(
-        r'TVA\s*\([^)]*\)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
-        texte, re.IGNORECASE
-    )
-    if not tva:
-        tva = re.search(
-            r'(?:^TVA|^T\.V\.A)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
-            texte, re.IGNORECASE | re.MULTILINE
-        )
-    if not tva:
-        tva = re.search(
-            r'TVA\s*[:\-]\s*([\d][\d\s,\.]+\s*€?)',
-            texte, re.IGNORECASE
-        )
-    total_ttc = re.search(
-        r'(?:TOTAL\s*TTC|Total\s*TTC|Net\s*à\s*payer|Montant\s*TTC|Amount\s*due)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€?)',
-        texte, re.IGNORECASE
-    )
-    if not total_ttc:
-        total_ttc = re.search(
-            r'(?:^TOTAL|^Total)\s*[:\-]?\s*([\d][\d\s,\.]+\s*€)',
-            texte, re.IGNORECASE | re.MULTILINE
-        )
+def extraire_avec_ia(texte):
+    client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[
+            {
+                "role": "user",
+                "content": f"""Extrait les informations suivantes de cette facture et réponds UNIQUEMENT en JSON valide, rien d'autre :
+{{
+    "numero_facture": "...",
+    "date": "...",
+    "echeance": "...",
+    "total_ht": "...",
+    "tva": "...",
+    "total_ttc": "..."
+}}
 
-    def get(match):
-        if match:
-            groups = [g for g in match.groups() if g is not None and g.strip() != '']
-            if groups:
-                return groups[0].strip()
-        return "Non trouvé"
+Si une information est absente, mets "Non trouvé".
 
+Facture :
+{texte}"""
+            }
+        ]
+    )
+    
+    contenu = message.content[0].text
+    contenu = re.sub(r'```json|```', '', contenu).strip()
+    data = json.loads(contenu)
+    
     return {
-        "Numéro facture": get(numero),
-        "Date": get(date),
-        "Échéance": get(echeance),
-        "Total HT": get(total_ht),
-        "TVA": get(tva),
-        "Total TTC": get(total_ttc),
+        "Numéro facture": data.get("numero_facture", "Non trouvé"),
+        "Date": data.get("date", "Non trouvé"),
+        "Échéance": data.get("echeance", "Non trouvé"),
+        "Total HT": data.get("total_ht", "Non trouvé"),
+        "TVA": data.get("tva", "Non trouvé"),
+        "Total TTC": data.get("total_ttc", "Non trouvé"),
     }
 
 st.title("Extracteur de factures PDF")
@@ -79,4 +57,21 @@ if fichier:
         for page in pdf.pages:
             texte += page.extract_text()
 
-    resultat =
+    with st.spinner("Extraction en cours..."):
+        resultat = extraire_avec_ia(texte)
+    
+    df = pd.DataFrame([resultat])
+
+    st.success("Données extraites avec succès !")
+    st.dataframe(df)
+
+    buffer = io.BytesIO()
+    df.to_excel(buffer, index=False)
+    buffer.seek(0)
+
+    st.download_button(
+        "Télécharger Excel",
+        buffer,
+        "facture.xlsx",
+        "application/vnd.ms-excel"
+    )
