@@ -1,17 +1,16 @@
 import streamlit as st
 import pdfplumber
 import pandas as pd
-import anthropic
 import io
 import json
 import re
+from openai import OpenAI
 
 def extraire_avec_ia(texte):
-    client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
         messages=[
             {
                 "role": "user",
@@ -24,16 +23,14 @@ def extraire_avec_ia(texte):
     "tva": "...",
     "total_ttc": "..."
 }}
-
 Si une information est absente, mets "Non trouvé".
-
 Facture :
 {texte}"""
             }
         ]
     )
     
-    contenu = message.content[0].text
+    contenu = response.choices[0].message.content
     contenu = re.sub(r'```json|```', '', contenu).strip()
     data = json.loads(contenu)
     
@@ -56,12 +53,11 @@ if fichier:
         texte = ""
         for page in pdf.pages:
             texte += page.extract_text()
-    st.text_area("Texte extrait du PDF", texte, height=200)
+
     with st.spinner("Extraction en cours..."):
         resultat = extraire_avec_ia(texte)
     
     df = pd.DataFrame([resultat])
-
     st.success("Données extraites avec succès !")
     st.dataframe(df)
 
