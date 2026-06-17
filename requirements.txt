@@ -2,4 +2,4 @@ pdfplumber
 pandas
 openpyxl
 streamlit
-anthropic
+openai
